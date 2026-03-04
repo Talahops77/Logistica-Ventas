@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa Estratégico de Logística y Ventas</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --negro: #0a0a0a;
+    --blanco: #f5f0e8;
+    --amarillo: #f5c842;
+    --rojo: #e63946;
+    --azul: #457b9d;
+    --verde: #2a9d8f;
+    --naranja: #e76f51;
+    --gris: #1e1e1e;
+    --gris2: #2d2d2d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--negro);
+    color: var(--blanco);
+    font-family: 'Space Mono', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--negro);
+    border-bottom: 2px solid var(--amarillo);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 1000;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-left h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    color: var(--amarillo);
+    white-space: nowrap;
+  }
+  .header-left .subtitle {
+    font-size: 0.58rem;
+    opacity: 0.5;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+
+  /* ── CITY SELECTOR ── */
+  .city-nav {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .city-btn {
+    background: var(--gris);
+    border: 1px solid var(--gris2);
+    color: var(--blanco);
+    padding: 7px 14px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .city-btn:hover { border-color: var(--amarillo); color: var(--amarillo); }
+  .city-btn.active {
+    background: var(--amarillo);
+    color: var(--negro);
+    border-color: var(--amarillo);
+  }
+  .city-btn.soon {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  .city-btn.soon:hover { border-color: var(--gris2); color: var(--blanco); }
+  .soon-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 1px;
+    background: rgba(255,255,255,0.15);
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  /* ── LAYER PANEL ── */
+  .layer-panel {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding-left: 14px;
+    border-left: 1px solid var(--gris2);
+    flex-wrap: wrap;
+  }
+  .layer-panel.hidden { display: none; }
+  .toggle-btn {
+    background: var(--gris2);
+    border: 1px solid transparent;
+    color: var(--blanco);
+    padding: 5px 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .toggle-btn.active { border-color: var(--amarillo); color: var(--amarillo); }
+  .toggle-btn:hover { opacity: 0.8; }
+
+  /* ── MAIN ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+  #map  { flex: 1; min-width: 0; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 268px;
+    background: var(--negro);
+    border-left: 2px solid var(--gris2);
+    overflow-y: auto;
+    flex-shrink: 0;
+    padding: 14px;
+  }
+  .sidebar.hidden { display: none; }
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--gris2); }
+
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    color: var(--amarillo);
+    border-bottom: 1px solid var(--gris2);
+    padding-bottom: 5px;
+    margin: 12px 0 8px;
+  }
+  .section-title:first-child { margin-top: 0; }
+
+  .zona-card {
+    background: var(--gris);
+    border-left: 3px solid var(--amarillo);
+    padding: 9px;
+    margin-bottom: 7px;
+    border-radius: 0 2px 2px 0;
+  }
+  .zona-card.barrio { border-left-color: var(--naranja); }
+  .zona-card.este   { border-left-color: var(--azul); }
+  .zona-card.oeste  { border-left-color: var(--verde); }
+  .zona-card.extremo{ border-left-color: var(--rojo); }
+
+  .zona-name  { font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem; letter-spacing: 1px; }
+  .zona-count { font-size: 0.57rem; opacity: 0.55; margin-top: 2px; }
+  .zona-note  { font-size: 0.55rem; opacity: 0.78; margin-top: 5px; line-height: 1.55; }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.57rem;
+  }
+  .stat-row .val { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--amarillo); }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.57rem; }
+  .legend-dot  { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+  .legend-hub  { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; border: 2px solid var(--blanco); }
+
+  /* Popup */
+  .leaflet-popup-content-wrapper {
+    background: var(--negro) !important;
+    border: 1px solid var(--amarillo) !important;
+    color: var(--blanco) !important;
+    border-radius: 2px !important;
+    font-family: 'Space Mono', monospace !important;
+  }
+  .leaflet-popup-tip { background: var(--negro) !important; }
+  .popup-name { font-family: 'Bebas Neue', sans-serif; font-size: 0.95rem; color: var(--amarillo); letter-spacing: 1px; }
+  .popup-tags { font-size: 0.54rem; margin-top: 4px; }
+  .popup-tag  { display: inline-block; background: rgba(255,255,255,0.1); padding: 1px 5px; margin: 1px 2px; border-radius: 2px; font-size: 0.5rem; }
+  .popup-tag.pareto { background: rgba(245,200,66,0.3); color: var(--amarillo); }
+  .popup-tag.barril { background: rgba(42,157,143,0.3); color: var(--verde); }
+
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .header-left h1 { font-size: 1rem; }
+    .city-btn { font-size: 0.82rem; padding: 5px 9px; }
+    .layer-panel { border-left: none; padding-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Mapa Estratégico de Logística y Ventas</h1>
+    <div class="subtitle">Tierra del Fuego · Red de distribución cerveza</div>
+  </div>
+
+  <div class="city-nav">
+    <button class="city-btn" id="btn-ushuaia" onclick="selectCity('ushuaia')">📍 Ushuaia</button>
+    <button class="city-btn soon" title="Próximamente">📍 Río Grande <span class="soon-badge">PRÓX.</span></button>
+    <button class="city-btn soon" title="Próximamente">📍 Tolhuin <span class="soon-badge">PRÓX.</span></button>
+  </div>
+
+  <div class="layer-panel hidden" id="layer-panel">
+    <button class="toggle-btn active" id="tb-80"     onclick="toggleLayer('80')">80% Ventas</button>
+    <button class="toggle-btn active" id="tb-pareto" onclick="toggleLayer('pareto')">Top 20% Pareto</button>
+    <button class="toggle-btn active" id="tb-barril" onclick="toggleLayer('barril')">Barril</button>
+    <button class="toggle-btn active" id="tb-zonas"  onclick="toggleLayer('zonas')">Zonas Reparto</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+  <div class="sidebar hidden" id="sidebar">
+
+    <div class="section-title">Resumen — Ushuaia</div>
+    <div class="stat-row"><span>Total clientes mapeados</span><span class="val">95</span></div>
+    <div class="stat-row"><span>Top 20% → 67% ventas</span><span class="val">62</span></div>
+    <div class="stat-row"><span>Clientes de barril</span><span class="val">42</span></div>
+    <div class="stat-row"><span>Zonas identificadas</span><span class="val">5</span></div>
+
+    <div class="section-title">Leyenda</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f5c842"></div>80% ventas (todos)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e63946"></div>Top 20% clientes (Pareto)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#2a9d8f"></div>Clientes barril</div>
+    <div class="legend-item"><div style="width:13px;height:13px;background:rgba(220,50,50,0.3);border:2px solid #e63946;flex-shrink:0"></div>Zona 1 · Centro</div>
+    <div class="legend-item"><div style="width:13px;height:13px;background:rgba(180,230,0,0.25);border:2px solid #aadd00;flex-shrink:0"></div>Zona 2 · Oeste</div>
+    <div class="legend-item"><div style="width:13px;height:13px;background:rgba(30,60,180,0.25);border:2px solid #3355cc;flex-shrink:0"></div>Zona 3 · Este</div>
+
+    <div class="section-title">Zonas</div>
+    <div class="zona-card">
+      <div class="zona-name">🟡 Centro</div>
+      <div class="zona-count">~46 clientes · Alta densidad</div>
+      <div class="zona-note">Núcleo comercial. San Martín, zona portuaria. Mayoría de los clientes top Pareto. Prioridad máxima.</div>
+    </div>
+    <div class="zona-card barrio">
+      <div class="zona-name">🟠 Barrio Oeste</div>
+      <div class="zona-count">~30 clientes · Media densidad</div>
+      <div class="zona-note">Polirrubros, autoservicios, hoteles (Las Hayas, Los Acebos, Wyndham). Zona residencial en expansión.</div>
+    </div>
+    <div class="zona-card este">
+      <div class="zona-name">🔵 Zona Este</div>
+      <div class="zona-count">~10 clientes · Baja densidad</div>
+      <div class="zona-note">Arakur, Küar, El Sanvi, Ringo, Antonella. Dispersos. Requiere logística diferenciada.</div>
+    </div>
+    <div class="zona-card oeste">
+      <div class="zona-name">🟢 Oeste / Glaciar</div>
+      <div class="zona-count">~5 clientes · Outliers turísticos</div>
+      <div class="zona-note">Bar de Montaña, La Cabaña Beer Point, Los Cauquenes. Frecuencia baja, ticket alto.</div>
+    </div>
+    <div class="zona-card extremo">
+      <div class="zona-name">🔴 Extremo Oeste</div>
+      <div class="zona-count">1 cliente · Ruta 3</div>
+      <div class="zona-note">Alakush (Parque Nacional). Sin hub, entrega directa.</div>
+    </div>
+
+<script>
+const map = L.map('map').setView([-54.808, -68.32], 13);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution:'© OpenStreetMap © CartoDB', subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+const clientes80 = [
+  {name:"Viagro",lon:-68.3028514,lat:-54.8065457},
+  {name:"BarDPizzas",lon:-68.3227386,lat:-54.8114585},
+  {name:"BarDPizzas (centro)",lon:-68.3086641,lat:-54.8073148},
+  {name:"Prana",lon:-68.3048907,lat:-54.8069669},
+  {name:"Dublín",lon:-68.309613,lat:-54.8070342},
+  {name:"Hard Rock Cafe Ushuaia",lon:-68.3059471,lat:-54.8068177},
+  {name:"Club 1210 Ushuaia",lon:-68.3133872,lat:-54.8096428},
+  {name:"La Esquina Fueguina (1)",lon:-68.3103635,lat:-54.8059161},
+  {name:"La Esquina Fueguina (2)",lon:-68.3158745,lat:-54.8093483},
+  {name:"La Esquina Fueguina (3)",lon:-68.3179019,lat:-54.802148},
+  {name:"Bodegón Fueguino",lon:-68.3099163,lat:-54.8076151},
+  {name:"La Cabaña Beer Point",lon:-68.3690408,lat:-54.7989216},
+  {name:"Ley Seca",lon:-68.3411854,lat:-54.8107052},
+  {name:"Arakur Ushuaia Resort & Spa",lon:-68.2593116,lat:-54.7839065},
+  {name:"Ramos Generales El Almacén",lon:-68.30777,lat:-54.80797},
+  {name:"El Mercado Ushuaia",lon:-68.3182551,lat:-54.8099068},
+  {name:"Augusto Ushuaia",lon:-68.3051411,lat:-54.8065748},
+  {name:"Dalee Me Gusta",lon:-68.2379368,lat:-54.7929628},
+  {name:"Pizzeria Manija",lon:-68.2992622,lat:-54.8054409},
+  {name:"Pizzeria Manija (Rubinos)",lon:-68.3348959,lat:-54.8187949},
+  {name:"Jeremy Button Gintoneria",lon:-68.3089045,lat:-54.8085447},
+  {name:"Las Hayas Ushuaia Resort",lon:-68.3521087,lat:-54.8073499},
+  {name:"Los Acebos Ushuaia Hotel",lon:-68.3522106,lat:-54.8059318},
+  {name:"Portal Patagónico",lon:-68.3097153,lat:-54.8075643},
+  {name:"Taberna Del Viejo Lobo",lon:-68.300252,lat:-54.805327},
+  {name:"Alakush",lon:-68.561788,lat:-54.8373675},
+  {name:"La Casa de Los Mariscos",lon:-68.3013087,lat:-54.8056005},
+  {name:"EL FARO RESTO",lon:-68.3026633,lat:-54.8059107},
+  {name:"Polirubro Romy",lon:-68.3305286,lat:-54.8060916},
+  {name:"Pizzería Dieguito",lon:-68.3137251,lat:-54.8048046},
+  {name:"Full drinks",lon:-68.3365639,lat:-54.8179587},
+  {name:"Gualdesi",lon:-68.3139898,lat:-54.8049191},
+  {name:"Parrilla La Estancia",lon:-68.3026172,lat:-54.8052506},
+  {name:"La Cantina De Freddy",lon:-68.3025131,lat:-54.8059122},
+  {name:"Hotel Los Yámanas de Ushuaia",lon:-68.359933,lat:-54.83789},
+  {name:"Monte Olivia Souvenir",lon:-68.305004,lat:-54.8063673},
+  {name:"La Última Bita",lon:-68.3000853,lat:-54.8052948},
+  {name:"UNISUR",lon:-68.3145738,lat:-54.799983},
+  {name:"Kuar 1900",lon:-68.3046969,lat:-54.8063073},
+  {name:"Küar resto bar",lon:-68.2682876,lat:-54.7974663},
+  {name:"Polirrubro 7 colores",lon:-68.3419127,lat:-54.8223303},
+  {name:"Santos",lon:-68.3080473,lat:-54.8080564},
+  {name:"Krund Ushuaia",lon:-68.3028402,lat:-54.8047865},
+  {name:"Tante Sara - Café & Bar",lon:-68.3079027,lat:-54.8070761},
+  {name:"El Barril",lon:-68.3520684,lat:-54.821776},
+  {name:"Polirubro Origenes del Fuego",lon:-68.3654497,lat:-54.8334773},
+  {name:"El Viejo Marino",lon:-68.3010465,lat:-54.8062938},
+  {name:"Doña Lupita",lon:-68.3130526,lat:-54.8065971},
+  {name:"Francisco Torres 1230",lon:-68.3415064,lat:-54.821943},
+  {name:"DEPORT-5",lon:-68.2802416,lat:-54.7964445},
+  {name:"Magallanes & Onas",lon:-68.3204796,lat:-54.8061503},
+  {name:"Martinica",lon:-68.298957,lat:-54.8050082},
+  {name:"Los Cauquenes Resort",lon:-68.3725908,lat:-54.8418294},
+  {name:"Tia Elvira",lon:-68.302522,lat:-54.8067053},
+  {name:"El Turco",lon:-68.3173388,lat:-54.8096651},
+  {name:"Confitería Aeropuerto",lon:-68.3119265,lat:-54.8393948},
+  {name:"Frenesí Pool",lon:-68.3095012,lat:-54.8058603},
+  {name:"Minimercado Champita",lon:-68.3432841,lat:-54.8225169},
+  {name:"El Barto",lon:-68.3151793,lat:-54.8092406},
+  {name:"Fiambreria y Despensa Junior",lon:-68.3526325,lat:-54.8217769},
+  {name:"Kiosco Tuty Ushuaia",lon:-68.3136669,lat:-54.8085761},
+  {name:"Polirrubro Beto",lon:-68.3107911,lat:-54.8054874},
+  {name:"Casa Olmo Bodegon",lon:-68.2995666,lat:-54.8049125},
+  {name:"Polirubro Roma",lon:-68.3449183,lat:-54.8209769},
+  {name:"Bar de Montaña",lon:-68.3702892,lat:-54.799007},
+  {name:"Isabel Cocina al Disco",lon:-68.3018521,lat:-54.8063088},
+  {name:"Polirrubro Tokio",lon:-68.3379355,lat:-54.81188},
+  {name:"Azizam",lon:-68.3024617,lat:-54.8073229},
+  {name:"Autoservicio Thomas",lon:-68.3252529,lat:-54.817178},
+  {name:"Bar Ideal",lon:-68.3036412,lat:-54.8060024},
+  {name:"A Y M (1)",lon:-68.3294162,lat:-54.820838},
+  {name:"A Y M (2)",lon:-68.3449183,lat:-54.8209769},
+  {name:"A Y M (3)",lon:-68.3342453,lat:-54.8226784},
+  {name:"Tranex",lon:-68.4246472,lat:-54.8348947},
+  {name:"LA BIRRA LOCA",lon:-68.2703049,lat:-54.7910956},
+  {name:"Autoservicio Bella Vista",lon:-68.3546458,lat:-54.8201421},
+  {name:"Polirrubro Abril",lon:-68.3342111,lat:-54.8175704},
+  {name:"Pepos Burguér Beer",lon:-68.3067163,lat:-54.8071661},
+  {name:"Moustacchio",lon:-68.3021407,lat:-54.8058305},
+  {name:"Husky Park - Nunatak",lon:-68.1012188,lat:-54.7167498},
+  {name:"Circo Beat",lon:-68.3291244,lat:-54.8200939},
+  {name:"Yámana Bar & Patín",lon:-68.3200458,lat:-54.8139844},
+  {name:"El Sanvi",lon:-68.2679917,lat:-54.7919629},
+  {name:"Minimercado ZF ZONA FRANCA",lon:-68.3352194,lat:-54.8101211},
+  {name:"Dif-Cor",lon:-68.3444736,lat:-54.8161268},
+  {name:"Ringo Store",lon:-68.2748586,lat:-54.7912726},
+  {name:"Wine Host",lon:-68.3065809,lat:-54.80725},
+  {name:"Tolkeyén Ushuaia Hotel",lon:-68.3508818,lat:-54.8368096},
+  {name:"La Proveeduria",lon:-68.3145926,lat:-54.8077835},
+  {name:"Fiambres del Duende",lon:-68.3124421,lat:-54.8047485},
+  {name:"Antonella",lon:-68.2725382,lat:-54.7810494},
+  {name:"Super Clan Mercado",lon:-68.3387223,lat:-54.8153875},
+  {name:"Wyndham Garden Ushuaia Hotel del Glaciar",lon:-68.3570905,lat:-54.8043464},
+  {name:"Hotel Altos Ushuaia",lon:-68.345752,lat:-54.8086647},
+  {name:"El Rincón del Fiambre",lon:-68.2729663,lat:-54.7895861},
+];
+
+const paretoKeys = ["Viagro","BarDPizzas","Prana","Dublín","Hard Rock","Club 1210","Esquina Fueguina","Bodegón","Cabaña Beer","Ley Seca","Arakur","Ramos Generales","El Mercado","Augusto","Dalee","Manija","Jeremy Button","Las Hayas","Los Acebos","Portal Patagónico","Viejo Lobo","Alakush","Mariscos","FARO","Polirubro Romy","Dieguito","Full drinks","Gualdesi","Estancia","Cantina","Yámanas","Monte Olivia","Última Bita","UNISUR","Kuar","Küar","7 colores","Santos","Krund","Tante Sara","Barril","Origenes","Viejo Marino","Lupita","Francisco Torres","DEPORT","Magallanes","Martinica","Cauquenes","Elvira","Turco","Aeropuerto","Frenesí","Champita","Barto","Junior","Tuty","Beto","Casa Olmo"];
+
+const barrilKeys = ["Bodegón","Mariscos","Dieguito","Küar","Montaña","Yámana","Lupita","Barto","Tango","Ramos Generales","Tante Sara","Viagro","Viejo Lobo","Isabel","Frenesí","Casa Olmo","Wyndham","Pepos","Cabaña","Hard Rock","Club 1210","Dublín","Santos","Krund","Manija","Galicia","BarDPizzas","El Mercado","Augusto","Jeremy Button","Bar Ideal","Barril","Nautico"];
+
+
+function matchKeys(name, keys) {
+  const n = name.toLowerCase();
+  return keys.some(k => n.includes(k.toLowerCase()));
+}
+
+function dotIcon(color, size) {
+  return L.divIcon({
+    html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:1px solid rgba(255,255,255,0.25);box-shadow:0 0 5px ${color}77"></div>`,
+    iconSize:[size,size],iconAnchor:[size/2,size/2],className:''
+  });
+}
+
+const layerGroups = {'80':L.layerGroup(),pareto:L.layerGroup(),barril:L.layerGroup(),zonas:L.layerGroup()};
+
+// ── ZONAS DE REPARTO ──
+// Zona 1 · Centro (Rojo) — Darwin al oeste, Maipú al sur, Yaganes/Alem al este
+const zona1 = L.polygon([
+  [-54.7970, -68.3175],
+  [-54.7995, -68.3185],
+  [-54.8040, -68.3188],
+  [-54.8075, -68.3172],
+  [-54.8110, -68.3148],
+  [-54.8135, -68.3120],
+  [-54.8140, -68.3085],
+  [-54.8138, -68.3050],
+  [-54.8132, -68.3010],
+  [-54.8120, -68.2972],
+  [-54.8100, -68.2950],
+  [-54.8078, -68.2945],
+  [-54.8055, -68.2958],
+  [-54.8020, -68.2960],
+  [-54.7995, -68.2975],
+  [-54.7970, -68.3010],
+  [-54.7960, -68.3070],
+  [-54.7965, -68.3130],
+  [-54.7970, -68.3175],
+], {color:'#e63946', weight:2.5, fillColor:'#e63946', fillOpacity:0.15, dashArray:'6,4'});
+
+// Zona 2 · Oeste (Verde lima) — Mirador/Cañadón hacia Parque Nacional
+const zona2 = L.polygon([
+  [-54.7970, -68.3175],
+  [-54.7965, -68.3130],
+  [-54.7960, -68.3070],
+  [-54.7970, -68.3010],
+  [-54.8040, -68.3188],
+  [-54.8075, -68.3172],
+  [-54.8110, -68.3148],
+  [-54.8135, -68.3120],
+  [-54.8140, -68.3085],
+  [-54.8145, -68.3150],
+  [-54.8160, -68.3220],
+  [-54.8185, -68.3300],
+  [-54.8210, -68.3390],
+  [-54.8220, -68.3500],
+  [-54.8215, -68.3620],
+  [-54.8200, -68.3740],
+  [-54.8170, -68.3900],
+  [-54.8120, -68.4050],
+  [-54.8050, -68.4180],
+  [-54.7960, -68.4200],
+  [-54.7880, -68.4150],
+  [-54.7820, -68.4000],
+  [-54.7790, -68.3800],
+  [-54.7800, -68.3600],
+  [-54.7830, -68.3450],
+  [-54.7860, -68.3320],
+  [-54.7900, -68.3230],
+  [-54.7940, -68.3185],
+  [-54.7970, -68.3175],
+], {color:'#aadd00', weight:2.5, fillColor:'#bbee00', fillOpacity:0.13, dashArray:'6,4'});
+
+// Zona 3 · Este (Azul marino) — Yaganes hacia Cerro Castor
+const zona3 = L.polygon([
+  [-54.7970, -68.3010],
+  [-54.7995, -68.2975],
+  [-54.8020, -68.2960],
+  [-54.8055, -68.2958],
+  [-54.8078, -68.2945],
+  [-54.8100, -68.2950],
+  [-54.8120, -68.2972],
+  [-54.8132, -68.3010],
+  [-54.8125, -68.2920],
+  [-54.8110, -68.2840],
+  [-54.8090, -68.2760],
+  [-54.8060, -68.2670],
+  [-54.8020, -68.2570],
+  [-54.7970, -68.2470],
+  [-54.7920, -68.2380],
+  [-54.7870, -68.2310],
+  [-54.7810, -68.2270],
+  [-54.7760, -68.2310],
+  [-54.7720, -68.2420],
+  [-54.7710, -68.2540],
+  [-54.7730, -68.2680],
+  [-54.7770, -68.2820],
+  [-54.7820, -68.2920],
+  [-54.7870, -68.2980],
+  [-54.7920, -68.3000],
+  [-54.7970, -68.3010],
+], {color:'#3355cc', weight:2.5, fillColor:'#2244bb', fillOpacity:0.15, dashArray:'6,4'});
+
+// Labels for zones
+function addZoneLabel(lat, lon, text, color) {
+  return L.marker([lat, lon], {
+    icon: L.divIcon({
+      html: `<div style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:${color};letter-spacing:2px;text-shadow:0 0 8px rgba(0,0,0,0.9),0 0 3px rgba(0,0,0,1);white-space:nowrap;pointer-events:none">${text}</div>`,
+      className: '',
+      iconAnchor: [40, 10]
+    }),
+    interactive: false
+  });
+}
+
+[zona1, zona2, zona3].forEach(z => z.addTo(layerGroups.zonas));
+addZoneLabel(-54.806, -68.307, 'ZONA 1 · CENTRO', '#ff6666').addTo(layerGroups.zonas);
+addZoneLabel(-54.810, -68.355, 'ZONA 2 · OESTE', '#ccee00').addTo(layerGroups.zonas);
+addZoneLabel(-54.795, -68.270, 'ZONA 3 · ESTE', '#6688ff').addTo(layerGroups.zonas);
+
+clientes80.forEach(c => {
+  const p = matchKeys(c.name, paretoKeys);
+  const b = matchKeys(c.name, barrilKeys);
+  const tags = [];
+  if(p) tags.push('<span class="popup-tag pareto">TOP PARETO 20%</span>');
+  if(b) tags.push('<span class="popup-tag barril">BARRIL</span>');
+  tags.push('<span class="popup-tag">80% VENTAS</span>');
+  L.marker([c.lat,c.lon],{icon:dotIcon('#f5c842',8)})
+   .bindPopup(`<div class="popup-name">${c.name}</div><div class="popup-tags">${tags.join(' ')}</div>`,{maxWidth:250})
+   .addTo(layerGroups['80']);
+});
+
+clientes80.forEach(c => {
+  if(!matchKeys(c.name,paretoKeys)) return;
+  const b = matchKeys(c.name,barrilKeys);
+  const tags=['<span class="popup-tag pareto">★ TOP 20% PARETO</span>'];
+  if(b) tags.push('<span class="popup-tag barril">BARRIL</span>');
+  L.marker([c.lat,c.lon],{icon:dotIcon('#e63946',11)})
+   .bindPopup(`<div class="popup-name">${c.name}</div><div class="popup-tags">${tags.join(' ')}</div>`,{maxWidth:250})
+   .addTo(layerGroups.pareto);
+});
+
+clientes80.forEach(c => {
+  if(!matchKeys(c.name,barrilKeys)) return;
+  L.marker([c.lat,c.lon],{icon:dotIcon('#2a9d8f',10)})
+   .bindPopup(`<div class="popup-name">${c.name}</div><div class="popup-tags"><span class="popup-tag barril">🍺 CLIENTE BARRIL</span></div>`,{maxWidth:250})
+   .addTo(layerGroups.barril);
+});
+
+
+function selectCity(city) {
+  document.querySelectorAll('.city-btn:not(.soon)').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+city).classList.add('active');
+  document.getElementById('layer-panel').classList.remove('hidden');
+  document.getElementById('sidebar').classList.remove('hidden');
+  if(city==='ushuaia'){
+    Object.values(layerGroups).forEach(lg=>lg.addTo(map));
+    ['80','pareto','barril','zonas'].forEach(id=>document.getElementById('tb-'+id).classList.add('active'));
+    map.flyTo([-54.808,-68.32],13,{duration:1.2});
+  }
+}
+
+function toggleLayer(layer) {
+  const btn=document.getElementById('tb-'+layer);
+  if(map.hasLayer(layerGroups[layer])){
+    map.removeLayer(layerGroups[layer]);
+    btn.classList.remove('active');
+  } else {
+    map.addLayer(layerGroups[layer]);
+    btn.classList.add('active');
+  }
+}
+
+selectCity('ushuaia');
+</script>
+</body>
+</html>
